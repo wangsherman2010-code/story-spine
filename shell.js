@@ -41,7 +41,7 @@ async function assets(){
 async function buildFile(state){
   const a=await assets();
   const json=JSON.stringify(state).replace(/</g,"\\u003c");
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<meta name="generator" content="Story Spine">\n'
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">\n<meta name="generator" content="Story Spine">\n'
     +'<title>'+esc((state.film.title||"Untitled plan")+" · Story Spine")+'</title>\n'+FONT_LINK+'\n<style id="spine-css">'+a.css+'</style>\n</head>\n<body data-mode="file">\n<div id="bar"></div><div id="root"></div><div id="overlay"></div>\n'
     +'<script type="application/json" id="doc-state">'+json+'<\/script>\n'
     +'<script>window.SPINE_APP_URL='+JSON.stringify(APP_URL).replace(/</g,"\\u003c")+';<\/script>\n'

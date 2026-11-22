@@ -7,6 +7,9 @@ const FT=["Interview (SOT)","B-roll","Observational","Archival","Drone","Graphic
 const AT=["Music","Ambience","SFX","Sync sound","Silence"];
 
 let S=null,root=null,opts={},openId=null,dragId=null,ro=null,query="";
+const TOUCH=window.matchMedia&&matchMedia("(hover:none)").matches;
+let view=(()=>{try{const v=localStorage.getItem("spine.view");if(v==="list"||v==="wall")return v}catch(e){}return window.innerWidth<700?"list":"wall"})();
+const DURQ=[[15,"15s"],[30,"30s"],[60,"1m"],[90,"1:30"],[120,"2m"],[180,"3m"],[300,"5m"]];
 const q=s=>root.querySelector(s);
 
 function clone(o){return JSON.parse(JSON.stringify(o))}
@@ -111,7 +114,7 @@ function renderShell(){
   <div class="arc-box"><div class="arc"></div></div>
 </section>
 <section>
-  <div class="panel-h"><h2>Structure</h2><p class="hint">Prologue, acts, sequences, scenes. Click a card to open it; drag cards to reorder; drag the right edge of a column or the bottom edge of a card to resize it.</p></div>
+  <div class="panel-h"><h2>Structure</h2><div class="viewtog" role="group" aria-label="Layout"><button data-act="view" data-v="wall">Wall</button><button data-act="view" data-v="list">List</button></div><p class="hint view-hint"></p></div>
   <div class="board-wrap"><div class="board"></div></div>
 </section>
 </div>
@@ -158,38 +161,45 @@ function openResult(btn){const id=btn.dataset.id;
 
 function renderBanner(){q(".banner-slot").innerHTML=S.example?`<div class="banner"><b>Example</b><span>“The Last Crossing” is sample content showing how the spine fills in. Edit it, or start a new plan from the menu.</span><button class="btn sm" data-act="dismiss-example">Hide this note</button></div>`:""}
 
-function cardHTML(s,info,M){
+function cardHTML(s,info,M,list){
   const hl=M?(M.ids.has(s.id)?" hit":" dim"):"";
   const media=S.media?`<div class="chips"><span class="chip${s.footage.length?" on":""}">${s.footage.length} footage</span><span class="chip${s.audio.length?" on":""}">${s.audio.length} audio</span><span class="chip${s.vo.trim()?" on":""}">VO</span></div>`:"";
-  const h=+s.h>0?Math.min(900,Math.max(70,+s.h)):0;
-  return `<article class="card${openId===s.id?" sel":""}${hl}${h?" sized":""}"${h?` style="height:${h}px"`:""} tabindex="0" role="button" draggable="true" data-scene="${s.id}" aria-label="Scene ${info.num}: ${esc(s.title||"Untitled")}"><span class="card-grip" data-grip="card" title="Drag to resize. Double-click to reset." aria-hidden="true"></span>
+  const h=!list&&+s.h>0?Math.min(900,Math.max(70,+s.h)):0;
+  return `<article class="card${list?" ol-card":""}${openId===s.id?" sel":""}${hl}${h?" sized":""}"${h?` style="height:${h}px"`:""} tabindex="0" role="button"${list?"":' draggable="true"'} data-scene="${s.id}" aria-label="Scene ${info.num}: ${esc(s.title||"Untitled")}">${list?"":'<span class="card-grip" data-grip="card" title="Drag to resize. Double-click to reset." aria-hidden="true"></span>'}
 <div class="card-top"><span class="num">${info.num}</span><span class="tc">${fmtTC(info.start)}</span></div>
 <div class="card-title">${s.title?esc(s.title):'<span class="ph">Untitled scene</span>'}</div>
 ${s.summary?`<div class="card-sum">${esc(s.summary)}</div>`:""}
 <div class="card-foot"><span class="meter" title="Intensity ${s.intensity}/10"><i style="width:${s.intensity*10}%"></i></span><span class="dur">${fmtDur(s.dur)}</span></div>${media}</article>`}
 
+function blockHead(b,I,acts){const isAct=b.kind==="act";
+  return `<header class="blk-h"><div class="blk-tag"><span class="blk-name">${I.label}</span><span class="tc">${fmtTC(I.start)}–${fmtTC(I.end)}</span></div>
+<input class="ghost blk-title" id="bt-${b.id}" data-b="${b.id}" data-f="title" value="${esc(b.title)}" placeholder="${isAct?"Act title":"Title"}" aria-label="${I.label} title" enterkeyhint="next">
+<textarea class="ghost blk-purpose auto" id="bp-${b.id}" data-b="${b.id}" data-f="purpose" rows="1" placeholder="${isAct?"What this act does for the story":"What this moment does"}" aria-label="${I.label} purpose">${esc(b.purpose)}</textarea>
+<div class="blk-actions">${isAct?`<button class="btn sm" data-act="add-seq" data-b="${b.id}">+ Sequence</button>`:""}${isAct&&acts>1?`<button class="btn sm danger" data-act="del-block" data-b="${b.id}" data-confirm="Click again to delete">Delete act</button>`:""}</div></header>`}
+function seqHead(b,qq,qi){
+  return `<div class="seq-h"><div class="seq-tag"><span>Sequence ${qi+1}</span>${b.sequences.length>1?`<button class="x" data-act="del-seq" data-q="${qq.id}" data-confirm="Delete?" aria-label="Delete sequence">×</button>`:""}</div>
+<input class="ghost seq-title" id="qt-${qq.id}" data-q="${qq.id}" data-f="title" value="${esc(qq.title)}" placeholder="Sequence title" aria-label="Sequence title" enterkeyhint="next">
+<textarea class="ghost seq-sum auto" id="qs-${qq.id}" data-q="${qq.id}" data-f="summary" rows="1" placeholder="What happens across these scenes" aria-label="Sequence summary">${esc(qq.summary)}</textarea></div>`}
 function renderBoard(){
-  const L=layout(),M=matches(),wrap=q(".board-wrap"),sl=wrap.scrollLeft;
+  const L=layout(),M=matches(),wrap=q(".board-wrap"),sl=wrap.scrollLeft,list=view==="list";
   const acts=S.blocks.filter(b=>b.kind==="act").length;let h="";
+  wrap.classList.toggle("list",list);
+  q(".view-hint").textContent=list?"Tap a scene to edit it. In the editor, use ‹ Prev / Next › (or swipe) to go card by card, and + Scene to add the next one."
+    :"Prologue, acts, sequences, scenes. Click a card to open it; drag cards to reorder; drag the right edge of a column or the bottom edge of a card to resize it.";
+  root.querySelectorAll('[data-act="view"]').forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.v===view)));
   S.blocks.forEach((b,bi)=>{
     const I=L.blocks.get(b.id),isAct=b.kind==="act";
-    h+=`<section class="blk ${b.kind}${M&&M.heads.has(b.id)?" hit-h":""}" style="--c:${I.color}">
-<header class="blk-h"><div class="blk-tag"><span class="blk-name">${I.label}</span><span class="tc">${fmtTC(I.start)}–${fmtTC(I.end)}</span></div>
-<input class="ghost blk-title" id="bt-${b.id}" data-b="${b.id}" data-f="title" value="${esc(b.title)}" placeholder="${isAct?"Act title":"Title"}" aria-label="${I.label} title">
-<textarea class="ghost blk-purpose auto" id="bp-${b.id}" data-b="${b.id}" data-f="purpose" rows="1" placeholder="${isAct?"What this act does for the story":"What this moment does"}" aria-label="${I.label} purpose">${esc(b.purpose)}</textarea>
-<div class="blk-actions">${isAct?`<button class="btn sm" data-act="add-seq" data-b="${b.id}">+ Sequence</button>`:""}${isAct&&acts>1?`<button class="btn sm danger" data-act="del-block" data-b="${b.id}" data-confirm="Click again to delete">Delete act</button>`:""}</div></header>
-<div class="seqs">`;
+    h+=`<section class="blk ${b.kind}${list?" ol":""}${M&&M.heads.has(b.id)?" hit-h":""}" style="--c:${I.color}">${blockHead(b,I,acts)}<div class="${list?"ol-body":"seqs"}">`;
     b.sequences.forEach((qq,qi)=>{
-      const w=+qq.w>0?Math.min(640,Math.max(180,+qq.w)):0;
-      h+=`<div class="seq${M&&M.heads.has(qq.id)?" hit-h":""}"${w?` style="width:${w}px"`:""}><span class="seq-grip" data-grip="seq" data-q="${qq.id}" title="Drag to resize. Double-click to reset." aria-hidden="true"></span>`;
-      if(isAct)h+=`<div class="seq-h"><div class="seq-tag"><span>Sequence ${qi+1}</span>${b.sequences.length>1?`<button class="x" data-act="del-seq" data-q="${qq.id}" data-confirm="Delete?" aria-label="Delete sequence">×</button>`:""}</div>
-<input class="ghost seq-title" id="qt-${qq.id}" data-q="${qq.id}" data-f="title" value="${esc(qq.title)}" placeholder="Sequence title" aria-label="Sequence title">
-<textarea class="ghost seq-sum auto" id="qs-${qq.id}" data-q="${qq.id}" data-f="summary" rows="1" placeholder="What happens across these scenes" aria-label="Sequence summary">${esc(qq.summary)}</textarea></div>`;
-      h+=`<div class="scenes" data-drop="${qq.id}">${qq.scenes.map(s=>cardHTML(s,L.scenes.get(s.id),M)).join("")}<button class="add-scene" data-act="add-scene" data-q="${qq.id}">+ Scene</button></div></div>`});
+      const w=!list&&+qq.w>0?Math.min(640,Math.max(180,+qq.w)):0;
+      h+=list?`<div class="ol-seq${M&&M.heads.has(qq.id)?" hit-h":""}">`
+        :`<div class="seq${M&&M.heads.has(qq.id)?" hit-h":""}"${w?` style="width:${w}px"`:""}><span class="seq-grip" data-grip="seq" data-q="${qq.id}" title="Drag to resize. Double-click to reset." aria-hidden="true"></span>`;
+      if(isAct)h+=seqHead(b,qq,qi);
+      h+=`<div class="scenes" data-drop="${qq.id}">${qq.scenes.map(s=>cardHTML(s,L.scenes.get(s.id),M,list)).join("")}<button class="add-scene" data-act="add-scene" data-q="${qq.id}">+ Scene</button></div></div>`});
     h+=`</div></section>`;
     const next=S.blocks[bi+1];
     if(isAct&&(!next||next.kind!=="act"))h+=`<button class="add-act" data-act="add-act" data-after="${b.id}">+ Act</button>`});
-  q(".board").innerHTML=h;wrap.scrollLeft=sl;growAll(q(".board"))}
+  q(".board").innerHTML=h;if(!list)wrap.scrollLeft=sl;growAll(q(".board"))}
 
 function smooth(p){if(p.length<2)return "";let d=`M${p[0][0]},${p[0][1]}`;
   for(let i=0;i<p.length-1;i++){const a=p[i-1]||p[i],b=p[i],c=p[i+1],e=p[i+2]||c;
@@ -231,6 +241,7 @@ function renderArc(){
   else g+=`<text x="${W/2}" y="${H/2}" text-anchor="middle" style="fill:var(--muted)">Add a scene to start drawing the arc</text>`;
   el.innerHTML=`<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Story arc: scene intensity over running time">${g}</svg>`}
 
+function segHTML(v){let h="";for(let i=1;i<=10;i++)h+=`<button type="button" data-act="int" data-v="${i}" class="${i<=v?"on":""}" aria-pressed="${i===v}">${i}</button>`;return h}
 function voMeta(s){const n=words(s.vo),sec=Math.round(n/150*60),long=s.dur&&sec>s.dur;
   return `<span class="vo-meta${long?" warn":""}">${n} words · ~${fmtDur(sec)} read${long?" · longer than the scene":""}</span>`}
 function itemRow(list,it,i){const types=list==="footage"?FT:AT;
@@ -243,19 +254,21 @@ function mediaHTML(s){
 function renderDrawer(focusSel){
   const d=q(".drawer");const f=openId&&find(openId);
   if(!f){openId=null;d.hidden=true;d.innerHTML="";return}
-  const s=f.s,info=layout().scenes.get(s.id);
+  const s=f.s,L=layout(),info=L.scenes.get(s.id),idx=L.list.indexOf(info),n=L.list.length;
   d.style.setProperty("--c",info.color);d.hidden=false;
   d.innerHTML=`<div class="dr-h"><div><div class="dr-tag">${info.blockLabel}${info.seqLabel?" · "+info.seqLabel:""} · Scene ${info.num}</div><div class="tc d-tc">${fmtTC(info.start)} – ${fmtTC(info.start+(s.dur||0))}</div></div><button class="x big" data-act="close" aria-label="Close editor">×</button></div>
 <div class="dr-body">
-<label class="fld"><span>Scene title</span><input class="d-title" id="d-title" data-f="title" value="${esc(s.title)}" placeholder="Name the scene"></label>
-<label class="fld"><span>What happens</span><textarea id="d-summary" data-f="summary" rows="3" class="auto" placeholder="What the audience sees and learns">${esc(s.summary)}</textarea></label>
-<div class="row2"><label class="fld"><span>Location</span><input id="d-location" data-f="location" value="${esc(s.location)}" placeholder="Where"></label><label class="fld"><span>Length</span><input class="d-dur" id="d-dur" data-f="dur" value="${fmtDur(s.dur)}" inputmode="numeric" placeholder="90 or 1:30" title="Seconds (90), or minutes:seconds (1:30)"><small class="fld-hint">seconds, or m:ss</small></label></div>
-<label class="fld"><span>Intensity <b class="d-int-v">${s.intensity}</b> / 10</span><input type="range" id="d-intensity" data-f="intensity" min="1" max="10" step="1" value="${s.intensity}"></label>
+<label class="fld"><span>Scene title</span><input class="d-title" id="d-title" data-f="title" value="${esc(s.title)}" placeholder="Name the scene" enterkeyhint="next" autocapitalize="sentences"></label>
+<label class="fld"><span>What happens</span><textarea id="d-summary" data-f="summary" rows="3" class="auto" placeholder="What the audience sees and learns" autocapitalize="sentences">${esc(s.summary)}</textarea></label>
+<div class="row2"><label class="fld"><span>Location</span><input id="d-location" data-f="location" value="${esc(s.location)}" placeholder="Where" enterkeyhint="next"></label><label class="fld"><span>Length</span><input class="d-dur" id="d-dur" data-f="dur" value="${fmtDur(s.dur)}" inputmode="numeric" placeholder="90 or 1:30" title="Seconds (90), or minutes:seconds (1:30)" enterkeyhint="done"><small class="fld-hint">seconds, or m:ss</small></label></div>
+<div class="qchips" role="group" aria-label="Quick length">${DURQ.map(([v,t])=>`<button type="button" data-act="dur" data-v="${v}" aria-pressed="${s.dur===v}">${t}</button>`).join("")}</div>
+<div class="fld"><span>Intensity <b class="d-int-v">${s.intensity}</b> / 10</span><div class="seg" role="group" aria-label="Intensity">${segHTML(s.intensity)}</div></div>
 <label class="fld"><span>Why this scene is here</span><textarea id="d-beat" data-f="beat" rows="2" class="auto" placeholder="Story beat or purpose">${esc(s.beat)}</textarea></label>
 <label class="fld"><span>Notes</span><textarea id="d-notes" data-f="notes" rows="2" class="auto" placeholder="Shooting ideas, open questions">${esc(s.notes)}</textarea></label>
 ${S.media?mediaHTML(s):`<div class="media-off"><p>Footage, audio and voice-over go in the production layer. Turn it on when the structure feels settled.</p><button class="btn sm" data-act="media-on">Turn on production layer</button></div>`}
-<div class="dr-actions"><button class="btn sm" data-act="move" data-dir="-1">← Earlier</button><button class="btn sm" data-act="move" data-dir="1">Later →</button><span class="sp"></span><button class="btn sm danger" data-act="del-scene" data-confirm="Click again to delete">Delete scene</button></div>
-</div>`;
+<div class="dr-actions"><span class="dr-al">Move</span><button class="btn sm" data-act="move" data-dir="-1">← Earlier</button><button class="btn sm" data-act="move" data-dir="1">Later →</button><span class="sp"></span><button class="btn sm danger" data-act="del-scene" data-confirm="Tap again to delete">Delete scene</button></div>
+</div>
+<nav class="dr-nav" aria-label="Go card by card"><button class="btn" data-act="nav" data-dir="-1"${idx<=0?" disabled":""} aria-label="Previous scene">‹ Prev</button><span class="dr-pos">${idx+1} / ${n}</span><button class="btn" data-act="nav" data-dir="1"${idx>=n-1?" disabled":""} aria-label="Next scene">Next ›</button><button class="btn primary" data-act="add-after" title="Add a new scene right after this one">+ Scene</button></nav>`;
   growAll(d);
   if(focusSel){const el=d.querySelector(focusSel);if(el)el.focus()}}
 
@@ -267,9 +280,19 @@ function changed(structural){
   if(opts.onChange)opts.onChange(S)}
 function updateRuntime(){const L=layout(),tg=(+S.film.target||0)*60,diff=L.total-tg;
   q(".runtime").innerHTML=`Running time ${fmtDur(L.total)}${tg?` · ${diff>0?`<span class="over">${fmtDur(diff)} over</span>`:`${fmtDur(-diff)} under`}`:""} · ${L.list.length} scenes`}
-function open(id,scroll){openId=id;renderBoard();renderArc();renderDrawer("#d-title");
+/* Phone Back button closes the editor instead of leaving the app. */
+let histPushed=false;
+try{if(history.state&&history.state.spineDrawer)history.replaceState(null,"")}catch(e){}
+function pushHist(){if(histPushed)return;try{history.pushState({spineDrawer:1},"");histPushed=true}catch(e){}}
+function popHist(){if(!histPushed)return;histPushed=false;try{if(history.state&&history.state.spineDrawer)history.back()}catch(e){}}
+window.addEventListener("popstate",()=>{if(histPushed){histPushed=false;if(openId){openId=null;renderDrawer();renderBoard();renderArc()}}});
+function open(id,scroll,focus){const was=openId;openId=id;if(!was)pushHist();renderBoard();renderArc();
+  renderDrawer(focus||(TOUCH?null:"#d-title"));
   if(scroll){const c=root.querySelector(`.card[data-scene="${id}"]`);if(c)c.scrollIntoView({block:"nearest",inline:"center",behavior:"smooth"})}}
-function closeDrawer(){if(!openId)return false;openId=null;renderDrawer();renderBoard();renderArc();return true}
+function navStep(dir){const L=layout().list,i=L.findIndex(x=>x.s.id===openId),n=L[i+dir];if(n)open(n.s.id,true)}
+function addAfter(){const f=find(openId);if(!f)return;const s=newScene();f.q.scenes.splice(f.i+1,0,s);openId=s.id;changed(true);
+  const t=q("#d-title");if(t)t.focus();const c=root.querySelector(`.card[data-scene="${s.id}"]`);if(c)c.scrollIntoView({block:"nearest",inline:"center"})}
+function closeDrawer(){if(!openId)return false;openId=null;popHist();renderDrawer();renderBoard();renderArc();return true}
 function allSeqs(){const out=[];S.blocks.forEach(b=>b.sequences.forEach(x=>out.push(x)));return out}
 function moveTo(id,qid,refId,after){const f=find(id),tq=findSeq(qid);if(!f||!tq)return;
   const [s]=f.q.scenes.splice(f.i,1);let idx=tq.q.scenes.length;
@@ -293,12 +316,18 @@ function onClick(e){
   const a=e.target.closest("[data-act]");
   if(!a){const c=e.target.closest(".card");if(c)open(c.dataset.scene);return}
   const act=a.dataset.act;
-  if(act==="add-scene"){const f=findSeq(a.dataset.q),s=newScene();f.q.scenes.push(s);openId=s.id;changed(true);renderArc();renderDrawer("#d-title")}
+  if(act==="add-scene"){const f=findSeq(a.dataset.q),s=newScene();f.q.scenes.push(s);if(!openId)pushHist();openId=s.id;changed(true);renderArc();renderDrawer("#d-title")}
+  else if(act==="view"){view=a.dataset.v;try{localStorage.setItem("spine.view",view)}catch(err){}renderBoard()}
+  else if(act==="nav")navStep(+a.dataset.dir);
+  else if(act==="add-after")addAfter();
+  else if(act==="int"){const f=find(openId);if(!f)return;f.s.intensity=+a.dataset.v;
+    const g=a.parentNode;g.innerHTML=segHTML(f.s.intensity);q(".d-int-v").textContent=f.s.intensity;changed();renderBoard()}
+  else if(act==="dur"){const f=find(openId);if(!f)return;f.s.dur=+a.dataset.v;setDurUI(f.s);changed();renderBoard()}
   else if(act==="add-seq"){S.blocks.find(b=>b.id===a.dataset.b).sequences.push(newSeq());changed(true)}
   else if(act==="del-seq")arm(a,()=>{const f=findSeq(a.dataset.q);if(openId&&f.q.scenes.some(s=>s.id===openId))openId=null;f.b.sequences.splice(f.b.sequences.indexOf(f.q),1);changed(true)});
   else if(act==="add-act"){const i=S.blocks.findIndex(b=>b.id===a.dataset.after);S.blocks.splice(i+1,0,{id:uid(),kind:"act",title:"",purpose:"",sequences:[newSeq()]});changed(true)}
   else if(act==="del-block")arm(a,()=>{const i=S.blocks.findIndex(b=>b.id===a.dataset.b);if(openId&&S.blocks[i].sequences.some(x=>x.scenes.some(s=>s.id===openId)))openId=null;S.blocks.splice(i,1);changed(true)});
-  else if(act==="del-scene")arm(a,()=>{const f=find(openId);if(f){f.q.scenes.splice(f.i,1);openId=null;changed(true)}});
+  else if(act==="del-scene")arm(a,()=>{const f=find(openId);if(f){f.q.scenes.splice(f.i,1);openId=null;popHist();changed(true)}});
   else if(act==="move")moveStep(+a.dataset.dir);
   else if(act==="close")closeDrawer();
   else if(act==="media-on"){S.media=true;q("#f-media").checked=true;changed(true)}
@@ -306,6 +335,10 @@ function onClick(e){
   else if(act==="del-item"){const row=a.closest(".mi"),f=find(openId);f.s[row.dataset.list].splice(+row.dataset.i,1);changed();renderBoard();renderDrawer()}
   else if(act==="dismiss-example"){S.example=false;renderBanner();changed()}
 }
+function setDurUI(s){const d=q(".drawer"),inp=d.querySelector("#d-dur");if(inp&&document.activeElement!==inp){inp.value=fmtDur(s.dur);inp.classList.remove("bad")}
+  const st=layout().scenes.get(s.id).start;d.querySelector(".d-tc").textContent=fmtTC(st)+" – "+fmtTC(st+s.dur);
+  d.querySelectorAll('[data-act="dur"]').forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.v===s.dur)));
+  const vs=d.querySelector(".vo-slot");if(vs)vs.innerHTML=voMeta(s)}
 function bindInner(){
   const board=q(".board"),drawer=q(".drawer"),search=q("#f-search");
   search.addEventListener("input",()=>{query=search.value;renderResults();renderBoard();renderArc()});
@@ -325,14 +358,20 @@ function bindInner(){
   drawer.addEventListener("input",e=>{const t=e.target,f=find(openId);if(!f)return;const s=f.s,row=t.closest(".mi");
     if(row){s[row.dataset.list][+row.dataset.i][t.dataset.k]=t.value;changed();renderBoard();return}
     const k=t.dataset.f;if(!k)return;
-    if(k==="dur"){const v=parseDur(t.value);t.classList.toggle("bad",v===null);if(v===null)return;s.dur=v;
-      const st=layout().scenes.get(s.id).start;drawer.querySelector(".d-tc").textContent=fmtTC(st)+" – "+fmtTC(st+v)}
-    else if(k==="intensity"){s.intensity=+t.value;drawer.querySelector(".d-int-v").textContent=t.value}
+    if(k==="dur"){const v=parseDur(t.value);t.classList.toggle("bad",v===null);if(v===null)return;s.dur=v;setDurUI(s)}
     else s[k]=t.value;
     const vs=drawer.querySelector(".vo-slot");if(vs&&(k==="vo"||k==="dur"))vs.innerHTML=voMeta(s);
     if(t.tagName==="TEXTAREA")grow(t);
     changed();renderBoard()});
   drawer.addEventListener("change",e=>{if(e.target.id==="d-dur"){const f=find(openId);if(f){e.target.value=fmtDur(f.s.dur);e.target.classList.remove("bad")}}});
+  /* Enter on a one-line field moves to the next field, like a phone form. */
+  drawer.addEventListener("keydown",e=>{if(e.key!=="Enter"||e.isComposing)return;const nx={"d-title":"#d-summary","d-location":"#d-dur"}[e.target.id];
+    if(nx){e.preventDefault();const el=drawer.querySelector(nx);if(el)el.focus()}else if(e.target.id==="d-dur"){e.preventDefault();e.target.blur()}});
+  /* Swipe left / right on the editor (outside text fields) to go to the next / previous scene. */
+  let sw=null;
+  drawer.addEventListener("touchstart",e=>{sw=null;if(e.touches.length!==1||e.target.closest("input,textarea,select,.seg,.qchips"))return;const t=e.touches[0];sw={x:t.clientX,y:t.clientY}},{passive:true});
+  drawer.addEventListener("touchend",e=>{if(!sw)return;const t=e.changedTouches[0],dx=t.clientX-sw.x,dy=t.clientY-sw.y;sw=null;
+    if(Math.abs(dx)>70&&Math.abs(dy)<Math.abs(dx)*.5)navStep(dx<0?1:-1)},{passive:true});
   let rz=null;
   board.addEventListener("pointerdown",e=>{const g=e.target.closest("[data-grip]");if(!g)return;e.preventDefault();e.stopPropagation();
     const el=g.dataset.grip==="seq"?g.closest(".seq"):g.closest(".card"),r=el.getBoundingClientRect();
@@ -369,7 +408,7 @@ function mount(el,state,o){
   if(root!==el){el.addEventListener("click",onClick);
     el.addEventListener("keydown",e=>{const c=e.target.closest&&e.target.closest(".card");if(c&&(e.key==="Enter"||e.key===" ")&&e.target===c){e.preventDefault();open(c.dataset.scene)}})}
   root=el;opts=o||{};S=normalize(state);openId=null;renderShell()}
-function setState(st){S=normalize(st);openId=null;query="";renderShell()}
+function setState(st){S=normalize(st);if(openId)popHist();openId=null;query="";renderShell()}
 function getState(){return S}
 
 return {mount,setState,getState,closeDrawer,normalize,blankState,exampleState,clone,esc,fmtDur}
