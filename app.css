@@ -159,6 +159,19 @@ button,input,select,textarea{font:inherit;color:inherit}
 .card.drop-before::before,.card.drop-after::after{content:"";position:absolute;left:0;right:0;height:3px;background:var(--c);border-radius:2px}
 .card.drop-before::before{top:-5px}
 .card.drop-after::after{bottom:-5px}
+/* resize handles */
+.seq{position:relative}
+.seq-grip{position:absolute;top:0;bottom:0;right:-8px;width:10px;cursor:ew-resize;z-index:3;touch-action:none}
+.card-grip{position:absolute;left:0;right:0;bottom:-5px;height:10px;cursor:ns-resize;z-index:3;touch-action:none}
+.seq-grip::after,.card-grip::after{content:"";position:absolute;background:var(--c);border-radius:2px;opacity:0;transition:opacity .12s}
+.seq-grip::after{top:50%;left:3px;width:4px;height:44px;margin-top:-22px}
+.card-grip::after{left:50%;top:3px;height:4px;width:36px;margin-left:-18px}
+.seq-grip:hover::after,.card-grip:hover::after,.resizing>.seq-grip::after,.resizing>.card-grip::after{opacity:.9}
+@media (hover:none){.seq-grip::after,.card-grip::after{opacity:.35}.seq-grip{width:16px;right:-11px}.card-grip{height:16px;bottom:-8px}}
+.resizing{user-select:none}
+.card.sized{overflow:hidden}
+.card.sized .card-sum{display:block;-webkit-line-clamp:unset;flex:1 1 auto;min-height:0;overflow:hidden;-webkit-mask-image:linear-gradient(#000 calc(100% - 18px),transparent);mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
+.card.sized .card-foot,.card.sized .chips{flex:none}
 .card-top{display:flex;justify-content:space-between;align-items:baseline}
 .num{font-family:var(--f-mono);font-size:11px;font-weight:500;color:var(--c)}
 .card-title{font-weight:600;line-height:1.3;overflow-wrap:anywhere}
@@ -193,6 +206,7 @@ input[type=range]{accent-color:var(--c);width:100%}
 .media h3{margin:0;font-family:var(--f-display);font-size:13px;letter-spacing:.14em;text-transform:uppercase}
 .mlist{display:flex;flex-direction:column;gap:6px}
 .mh{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.fld-hint{font-size:11px;color:var(--muted);font-family:var(--f-mono)}
 .mi{display:grid;grid-template-columns:132px 1fr auto;gap:6px;align-items:center}
 .mi .ref{grid-column:1 / 3;font-family:var(--f-mono);font-size:12px}
 .mi select{padding:6px}
