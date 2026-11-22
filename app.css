@@ -101,8 +101,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .h-title{font-family:var(--f-display);font-weight:800;font-size:clamp(1.7rem,4vw,2.6rem);line-height:1.1;letter-spacing:-.01em}
 .h-log{font-size:15.5px;color:var(--muted);max-width:68ch}
 .h-meta{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding-left:7px;font-size:13px;color:var(--muted)}
-.h-meta label{display:flex;align-items:center;gap:4px}
-.h-meta .ghost{width:auto;color:var(--ink)}
+.h-meta label{display:flex;align-items:center;gap:4px;max-width:100%;min-width:0}
+.h-meta .ghost{width:auto;color:var(--ink);min-width:0}
+.h-meta .f-director{width:18ch;flex:0 1 auto}
 .f-director{width:16ch}
 .f-target{width:5ch;text-align:right;font-family:var(--f-mono)}
 .runtime{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
@@ -245,6 +246,16 @@ input[type=range]{accent-color:var(--c);width:100%}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:6px;z-index:40;font-size:13px;max-width:calc(100% - 32px);display:flex;gap:10px;align-items:center}
 .toast button{background:transparent;border:1px solid var(--panel);color:var(--panel);border-radius:4px;padding:2px 8px;cursor:pointer}
 
+/* text size (A− / A+) scales the page content and the editor, not the app bar */
+.wrap,.drawer>:not(.dr-nav){zoom:var(--ts,1)}
+.viewctl{display:inline-flex;gap:0}
+.viewctl .btn{border-radius:0;margin-left:-1px;min-width:34px}
+.viewctl .btn:first-child{border-radius:6px 0 0 6px;margin-left:0}
+.viewctl .btn:last-child{border-radius:0 6px 6px 0}
+.viewctl .ts-val{font-family:var(--f-mono);font-size:11px;color:var(--muted);min-width:44px}
+.viewctl .icon{display:inline-flex;align-items:center;justify-content:center}
+.viewctl .icon svg{width:15px;height:15px}
+
 /* layout toggle + list (outline) view */
 .viewtog{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card)}
 .viewtog button{border:0;background:transparent;padding:4px 12px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted)}
@@ -266,8 +277,9 @@ input[type=range]{accent-color:var(--c);width:100%}
 .seg button{border:1px solid var(--line);background:var(--card);border-radius:5px;padding:7px 0;font-family:var(--f-mono);font-size:12.5px;cursor:pointer;min-width:0}
 .seg button.on{background:color-mix(in srgb,var(--c) 20%,var(--card));border-color:color-mix(in srgb,var(--c) 45%,var(--line))}
 .seg button[aria-pressed="true"]{background:var(--c);border-color:var(--c);color:var(--panel);font-weight:600}
-.drawer{overflow:hidden;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
-.drawer .dr-body{flex:1 1 auto;min-height:0;overflow-y:auto;margin-inline:-18px;padding:2px 18px 14px;overscroll-behavior:contain}
+.drawer{overflow:hidden;padding-left:0;padding-right:env(safe-area-inset-right,0px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+.drawer>*{padding-inline:18px;min-width:0}
+.drawer .dr-body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding-block:2px 14px;overscroll-behavior:contain}
 .dr-al{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .dr-nav{flex:none;display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:10px}
 .dr-nav .btn{min-height:40px}

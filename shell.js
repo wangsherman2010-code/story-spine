@@ -13,6 +13,29 @@ const esc=E.esc;
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}},
   del(k){try{localStorage.removeItem(k)}catch(e){}}};
+
+/* ---------- text size and light/dark (per device) ---------- */
+const TS_MIN=0.8,TS_MAX=1.5;
+const SUN='<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="currentColor"/><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 1.8v2.4M10 15.8v2.4M1.8 10h2.4M15.8 10h2.4M4.2 4.2l1.7 1.7M14.1 14.1l1.7 1.7M4.2 15.8l1.7-1.7M14.1 5.9l1.7-1.7"/></g></svg>';
+const MOON='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg>';
+function isDark(){const t=document.documentElement.dataset.theme;return t?t==="dark":!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)}
+function applyView(){
+  const ts=Math.min(TS_MAX,Math.max(TS_MIN,+LS.get("spine.textsize",1)||1));
+  document.documentElement.style.setProperty("--ts",ts);
+  const th=LS.get("spine.theme",null);
+  if(th==="light"||th==="dark")document.documentElement.dataset.theme=th;else delete document.documentElement.dataset.theme;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>m.content=isDark()?"#181c21":"#f8f9fa");
+  document.querySelectorAll('[data-view="theme"]').forEach(b=>{b.innerHTML=isDark()?SUN:MOON;b.title=b.ariaLabel=isDark()?"Switch to light":"Switch to dark"});
+  document.querySelectorAll('[data-view="smaller"]').forEach(b=>b.disabled=ts<=TS_MIN+1e-6);
+  document.querySelectorAll('[data-view="bigger"]').forEach(b=>b.disabled=ts>=TS_MAX-1e-6);
+  document.querySelectorAll(".ts-val").forEach(s=>s.textContent=Math.round(ts*100)+"%")}
+function viewCtlHTML(){return `<div class="viewctl" role="group" aria-label="Display"><button class="btn sm" data-view="smaller" title="Smaller text" aria-label="Smaller text">A−</button><button class="btn sm ts-val" data-view="reset" title="Reset text size">100%</button><button class="btn sm" data-view="bigger" title="Bigger text" aria-label="Bigger text">A+</button><button class="btn sm icon" data-view="theme"></button></div>`}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(!b)return;const k=b.dataset.view;
+  if(k==="theme")LS.set("spine.theme",isDark()?"light":"dark");
+  else{let ts=+LS.get("spine.textsize",1)||1;ts=k==="reset"?1:Math.round((ts+(k==="bigger"?.1:-.1))*10)/10;LS.set("spine.textsize",Math.min(TS_MAX,Math.max(TS_MIN,ts)))}
+  applyView();window.dispatchEvent(new Event("resize"))});
+if(window.matchMedia)matchMedia("(prefers-color-scheme: dark)").addEventListener("change",applyView);
+applyView();
 function uid(){return "x"+Math.random().toString(36).slice(2,9)}
 function slug(t){return String(t||"").toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g,"").trim().replace(/[\s_]+/g,"-").replace(/-+/g,"-").slice(0,40)}
 function rel(ts){if(!ts)return "never";const s=Math.round((Date.now()-ts)/1000);if(s<45)return "just now";if(s<3600)return Math.round(s/60)+" min ago";if(s<86400)return Math.round(s/3600)+" h ago";return new Date(ts).toLocaleDateString()}
@@ -81,7 +104,8 @@ function fileMode(){
   const rec={id:st.id,state:st,fileName:null};
   $("#bar").innerHTML=`<div class="appbar file-banner"><div class="appbar-in"><span class="brand">${LOGO}<span>Story Spine</span></span>
 <span class="plan-name">Plan file</span><span class="hint" id="fm-status">${restored?"Showing edits you made earlier in this browser. Save a copy to keep them.":"Edits stay in this browser until you save a copy."}</span>
-<div class="bar-actions"><button class="btn sm primary" data-sh="fm-save">${FS?"Save…":"Save a copy"}</button>${/^https:\/\//.test(APP_URL)?`<a class="btn sm" href="${esc(APP_URL)}" target="_blank" rel="noopener">Open the app</a>`:""}</div></div></div>`;
+<div class="bar-actions">${viewCtlHTML()}<button class="btn sm primary" data-sh="fm-save">${FS?"Save…":"Save a copy"}</button>${/^https:\/\//.test(APP_URL)?`<a class="btn sm" href="${esc(APP_URL)}" target="_blank" rel="noopener">Open the app</a>`:""}</div></div></div>`;
+  applyView();
   E.mount($("#root"),st,{onChange(s){rec.state=s;LS.set(key,s);$("#fm-status").textContent="Unsaved edits are kept in this browser. Save to keep them in a file."}});
   rec.state=E.getState();
   const save=async()=>{const ok=await saveFile(rec,true);if(ok===true){$("#fm-status").textContent="Saved to "+rec.fileName;toast("Saved to "+rec.fileName)}};
@@ -229,6 +253,7 @@ function renderBarShell(){
 <span class="plan-name" id="plan-name"></span>
 <button class="sync-pill" id="sync-pill" data-sh="pill"><i></i><span></span></button>
 <div class="bar-actions">
+  ${viewCtlHTML()}
   <button class="btn sm primary" data-sh="save" title="Save (Ctrl+S)">Save</button>
   <div class="menu"><button class="btn sm" data-sh="menu" aria-expanded="false">File</button>
     <div class="menu-pop" id="file-menu" hidden>
@@ -245,7 +270,7 @@ function renderBarShell(){
       <button data-sh="settings">GitHub sync settings…</button>
       <button data-sh="delete" data-confirm="Click again to delete this plan">Delete this plan</button>
     </div></div>
-</div></div></div>`}
+</div></div></div>`;applyView()}
 function renderBar(){
   if(FILE_MODE||!cur||!$("#plan-name"))return;
   $("#plan-name").textContent=(cur.state.film.title||"Untitled plan")+(cur.fileName?"  ·  "+cur.fileName+(cur.fileDirty?" (not saved to file)":""):"");
