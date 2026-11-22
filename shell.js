@@ -258,14 +258,30 @@ function renderBar(){
   else if(pending){cls="pending";txt="Changes waiting to sync"}
   else{cls="ok";txt="Synced "+rel(lastSync)}
   pill.className="sync-pill "+cls;label.textContent=txt;pill.title=ghReady()?"Sync with GitHub now":"Set up GitHub sync"}
+function planText(o){return typeof o==="string"?o:Array.isArray(o)?o.map(planText).join("\n"):o&&typeof o==="object"?Object.keys(o).filter(k=>k!=="id"&&k!=="kind").map(k=>planText(o[k])).join("\n"):""}
+function markText(text,T){const re=new RegExp("("+T.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")","gi");return String(text).split(re).map((p,i)=>i%2?"<mark>"+esc(p)+"</mark>":esc(p)).join("")}
+function libSnippet(text,T){const lines=text.split("\n").filter(l=>T.some(t=>l.toLowerCase().includes(t)));if(!lines.length)return "";
+  const l=lines[0].replace(/\s+/g," "),i=Math.max(0,l.toLowerCase().indexOf(T.find(t=>l.toLowerCase().includes(t)))-30);
+  return (i>0?"…":"")+markText(l.slice(i,i+90),T)+(l.length>i+90?"…":"")+(lines.length>1?` <span class="more">+${lines.length-1} more</span>`:"")}
 function renderLibrary(){
   const lib=$("#library");if(!lib||lib.hidden)return;
-  const recs=Store.all().sort((a,b)=>b.state.updatedAt-a.state.updatedAt);
-  lib.innerHTML=`<div class="dr-h"><div><div class="dr-tag">Your plans</div><div class="tc">${recs.length} on this device</div></div><button class="x big" data-sh="lib-close" aria-label="Close">×</button></div>
+  const all=Store.all().sort((a,b)=>b.state.updatedAt-a.state.updatedAt);
+  const qv=($("#lib-search")||{}).value||"",T=qv.toLowerCase().split(/\s+/).filter(Boolean);
+  const recs=T.length?all.filter(r=>{const t=planText(r.state).toLowerCase();return T.every(x=>t.includes(x))}):all;
+  lib.querySelector(".tc").textContent=T.length?`${recs.length} of ${all.length} match`:`${all.length} on this device`;
+  lib.querySelector(".lib-list").innerHTML=recs.length?recs.map(r=>`<button class="lib-item${cur&&cur.id===r.id?" cur":""}" data-sh="pick" data-id="${esc(r.id)}"><b>${T.length?markText(r.state.film.title||"Untitled plan",T):esc(r.state.film.title||"Untitled plan")}</b>
+${T.length?`<span class="lib-snip">${libSnippet(planText(r.state),T)}</span>`:""}
+<span class="lib-meta"><span>${sceneCount(r.state)} scenes</span><span>edited ${rel(r.state.updatedAt)}</span>${r.fileName?`<span class="tag">${esc(r.fileName)}</span>`:""}${ghReady()?(r.dirty?'<span class="tag pending">not synced</span>':r.remotePath?'<span class="tag ok">synced</span>':""):""}</span></button>`).join("")
+    :`<p class="empty">No plans contain “${esc(qv)}”.</p>`}
+function toggleLibrary(show){const lib=$("#library"),scrim=$("#scrim");lib.hidden=!show;scrim.hidden=!show;
+  if(!show)return;
+  lib.innerHTML=`<div class="dr-h"><div><div class="dr-tag">Your plans</div><div class="tc"></div></div><button class="x big" data-sh="lib-close" aria-label="Close">×</button></div>
 <div class="lib-actions"><button class="btn sm primary" data-sh="new">New plan</button><button class="btn sm" data-sh="open-file">Open file…</button>${ghReady()?`<button class="btn sm" data-sh="pill">Sync now</button>`:`<button class="btn sm" data-sh="settings">Set up sync</button>`}</div>
-<div class="lib-list">${recs.map(r=>`<button class="lib-item${cur&&cur.id===r.id?" cur":""}" data-sh="pick" data-id="${esc(r.id)}"><b>${esc(r.state.film.title||"Untitled plan")}</b>
-<span class="lib-meta"><span>${sceneCount(r.state)} scenes</span><span>edited ${rel(r.state.updatedAt)}</span>${r.fileName?`<span class="tag">${esc(r.fileName)}</span>`:""}${ghReady()?(r.dirty?'<span class="tag pending">not synced</span>':r.remotePath?'<span class="tag ok">synced</span>':""):""}</span></button>`).join("")}</div>`}
-function toggleLibrary(show){const lib=$("#library"),scrim=$("#scrim");lib.hidden=!show;scrim.hidden=!show;if(show){renderLibrary();const b=lib.querySelector(".lib-item.cur")||lib.querySelector("button");if(b)b.focus()}}
+<div class="search-box lib-search-box"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input id="lib-search" type="search" placeholder="Search all plans" autocomplete="off" spellcheck="false" aria-label="Search all plans"></div>
+<div class="lib-list"></div>`;
+  $("#lib-search").addEventListener("input",renderLibrary);
+  $("#lib-search").addEventListener("keydown",e=>{if(e.key==="Enter"){const b=lib.querySelector(".lib-item");if(b){e.preventDefault();b.click()}}});
+  renderLibrary();const b=lib.querySelector(".lib-item.cur")||lib.querySelector(".lib-item");if(b)b.focus()}
 
 function settingsModal(){
   const c=ghCfg()||{},host=location.hostname.match(/^([A-Za-z0-9-]+)\.github\.io$/);

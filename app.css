@@ -1,7 +1,7 @@
 /* Layout: sticky app bar + header + arc graph + horizontally scrolling story wall + scene drawer (right) + plan library (left) */
 :root{
   --bg:#e9ecef;--panel:#f8f9fa;--card:#ffffff;--ink:#1a1e23;--muted:#5b6570;--line:#d3d8de;--accent:#1f4e79;--warn:#b3261e;--ok:#2a7a50;
-  --c-pro:#56657d;--c-a1:#a8741f;--c-a2:#b0453a;--c-a3:#2a7a70;--c-a4:#6a5aa0;--c-clo:#4b5866;
+  --c-pro:#56657d;--c-a1:#a8741f;--c-a2:#b0453a;--c-a3:#2a7a70;--c-a4:#6a5aa0;--c-clo:#4b5866;--hl:#ffe17a;
   --f-display:'Archivo','Arial Narrow',system-ui,sans-serif;
   --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
   --f-mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
@@ -9,12 +9,39 @@
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#111418;--panel:#181c21;--card:#1f242a;--ink:#e4e7eb;--muted:#97a0aa;--line:#2b3138;--accent:#7fb0e0;--warn:#f2867c;--ok:#6cc79a;
-  --c-pro:#8d9cb6;--c-a1:#d9a54a;--c-a2:#e07a6c;--c-a3:#5cbfb1;--c-a4:#a597dc;--c-clo:#8b98a6;color-scheme:dark}}
+  --c-pro:#8d9cb6;--c-a1:#d9a54a;--c-a2:#e07a6c;--c-a3:#5cbfb1;--c-a4:#a597dc;--c-clo:#8b98a6;--hl:#7a6418;color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#111418;--panel:#181c21;--card:#1f242a;--ink:#e4e7eb;--muted:#97a0aa;--line:#2b3138;--accent:#7fb0e0;--warn:#f2867c;--ok:#6cc79a;
-  --c-pro:#8d9cb6;--c-a1:#d9a54a;--c-a2:#e07a6c;--c-a3:#5cbfb1;--c-a4:#a597dc;--c-clo:#8b98a6;color-scheme:dark}
+  --c-pro:#8d9cb6;--c-a1:#d9a54a;--c-a2:#e07a6c;--c-a3:#5cbfb1;--c-a4:#a597dc;--c-clo:#8b98a6;--hl:#7a6418;color-scheme:dark}
 
 *{box-sizing:border-box}
+mark{background:var(--hl);color:var(--ink);border-radius:2px;padding:0 1px}
+
+/* search */
+.search{display:flex;flex-direction:column;gap:6px}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0 12px;max-width:640px}
+.search-box:focus-within{border-color:var(--ink)}
+.search-box svg{width:16px;height:16px;color:var(--muted);flex:none}
+.search-box input{flex:1;min-width:0;border:0;background:transparent;padding:9px 0;font-size:14.5px}
+.search-box input:focus{outline:none}
+.search-count{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.search-key{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.search-box:focus-within .search-key{display:none}
+@media (hover:none){.search-key{display:none}}
+.results{display:flex;flex-direction:column;gap:4px;max-width:640px;max-height:300px;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px}
+.res{display:grid;grid-template-columns:auto 1fr;gap:1px 10px;text-align:left;border:0;border-left:3px solid var(--c);background:var(--card);border-radius:5px;padding:7px 10px;cursor:pointer}
+.res:hover,.res:focus-visible{background:var(--bg)}
+.res-l{font-family:var(--f-mono);font-size:10.5px;color:var(--c);white-space:nowrap;align-self:baseline}
+.res-t{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.res-s{grid-column:1 / -1;font-size:12.5px;color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.res-s em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
+.card.dim{opacity:.32}
+.card.hit{box-shadow:0 0 0 2px var(--hl),0 0 0 3px var(--ink)}
+.card.hit.sel{box-shadow:0 0 0 2px var(--c)}
+.blk.hit-h>.blk-h,.seq.hit-h>.seq-h{background:color-mix(in srgb,var(--hl) 45%,transparent);border-radius:6px}
+.lib-search-box{max-width:none}
+.lib-snip{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.lib-snip .more{font-family:var(--f-mono);font-size:11px}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}

@@ -6,7 +6,7 @@ const ACTC=["a1","a2","a3","a4"];
 const FT=["Interview (SOT)","B-roll","Observational","Archival","Drone","Graphics"];
 const AT=["Music","Ambience","SFX","Sync sound","Silence"];
 
-let S=null,root=null,opts={},openId=null,dragId=null,ro=null;
+let S=null,root=null,opts={},openId=null,dragId=null,ro=null,query="";
 const q=s=>root.querySelector(s);
 
 function clone(o){return JSON.parse(JSON.stringify(o))}
@@ -100,6 +100,12 @@ function renderShell(){
   <label class="switch" for="f-media"><input type="checkbox" id="f-media"${S.media?" checked":""}><span>Production layer</span><small>footage · audio · VO</small></label>
 </header>
 <div class="banner-slot"></div>
+<div class="search" role="search">
+  <div class="search-box"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="f-search" type="search" value="${esc(query)}" placeholder="Search scenes, notes, footage, audio, VO…" autocomplete="off" spellcheck="false" aria-label="Search this plan">
+    <span class="search-count" aria-live="polite"></span><kbd class="search-key">Ctrl F</kbd></div>
+  <div class="results" hidden></div>
+</div>
 <section>
   <div class="panel-h"><h2>Story arc</h2><p class="hint">Each dot is a scene, placed by running time and raised by intensity. Click a dot to edit that scene.</p></div>
   <div class="arc-box"><div class="arc"></div></div>
@@ -110,38 +116,74 @@ function renderShell(){
 </section>
 </div>
 <aside class="drawer" hidden aria-label="Scene editor"></aside>`;
-  renderBanner();renderBoard();renderArc();renderDrawer();updateRuntime();growAll(root);
+  renderBanner();renderBoard();renderArc();renderDrawer();renderResults();updateRuntime();growAll(root);
   if(ro)ro.disconnect();ro=new ResizeObserver(()=>{renderArc();growAll(root)});ro.observe(q(".arc"));
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>root&&growAll(root));
   bindInner()}
 
+/* ---------- search ---------- */
+function terms(){return query.toLowerCase().split(/\s+/).filter(Boolean)}
+function sceneFields(s){return [["Title",s.title],["What happens",s.summary],["Location",s.location],["Why it's here",s.beat],["Notes",s.notes],["VO",s.vo],
+  ...s.footage.map(f=>["Footage",[f.type,f.desc,f.ref].filter(Boolean).join(" · ")]),...s.audio.map(a=>["Audio",[a.type,a.desc].filter(Boolean).join(" · ")])]}
+function hit(fields,T){const all=fields.map(f=>String(f[1]||"").toLowerCase()).join("\n");if(!T.every(t=>all.includes(t)))return null;
+  return fields.find(f=>T.some(t=>String(f[1]||"").toLowerCase().includes(t)))}
+function mark(text,T){const re=new RegExp("("+T.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")","gi");
+  return String(text).split(re).map((p,i)=>i%2?"<mark>"+esc(p)+"</mark>":esc(p)).join("")}
+function snippet(text,T){text=String(text).replace(/\s+/g," ");const low=text.toLowerCase();
+  let i=Math.min(...T.map(t=>{const k=low.indexOf(t);return k<0?Infinity:k}));if(!isFinite(i))i=0;
+  const a=Math.max(0,i-40),b=Math.min(text.length,i+90);return (a>0?"…":"")+mark(text.slice(a,b),T)+(b<text.length?"…":"")}
+function matches(){
+  const T=terms();if(!T.length)return null;
+  const L=layout(),items=[],ids=new Set(),heads=new Set();
+  S.blocks.forEach(b=>{const I=L.blocks.get(b.id);
+    const bf=hit([["Title",b.title],["Purpose",b.purpose]],T);
+    if(bf){heads.add(b.id);items.push({kind:"block",id:b.id,label:I.label,title:b.title||I.label,field:bf[0],snip:snippet(bf[1],T),color:I.color})}
+    b.sequences.forEach((qq,qi)=>{
+      if(b.kind==="act"){const qf=hit([["Title",qq.title],["Summary",qq.summary]],T);
+        if(qf){heads.add(qq.id);items.push({kind:"seq",id:qq.id,label:I.label+" · Sequence "+(qi+1),title:qq.title||"Sequence "+(qi+1),field:qf[0],snip:snippet(qf[1],T),color:I.color})}}
+      qq.scenes.forEach(s=>{const f=hit(sceneFields(s),T);if(!f)return;const info=L.scenes.get(s.id);ids.add(s.id);
+        items.push({kind:"scene",id:s.id,label:"Scene "+info.num+" · "+info.blockLabel,title:s.title||"Untitled scene",field:f[0],snip:snippet(f[1],T),color:info.color})})})});
+  return {ids,heads,items,T}}
+function renderResults(){
+  const box=q(".results"),cnt=q(".search-count"),M=matches();
+  if(!M){box.hidden=true;box.innerHTML="";cnt.textContent="";return}
+  cnt.textContent=M.items.length?M.items.length+(M.items.length===1?" match":" matches"):"No matches";
+  box.hidden=false;
+  box.innerHTML=M.items.length?M.items.slice(0,100).map(it=>`<button class="res" data-res="${it.kind}" data-id="${it.id}" style="--c:${it.color}"><span class="res-l">${esc(it.label)}</span><span class="res-t">${mark(it.title,M.T)}</span><span class="res-s"><em>${esc(it.field)}</em> ${it.snip}</span></button>`).join("")
+    :`<p class="empty">Nothing in this plan matches “${esc(query)}”. Try fewer or different words.</p>`}
+function openResult(btn){const id=btn.dataset.id;
+  if(btn.dataset.res==="scene"){open(id,true);return}
+  const el=root.querySelector(btn.dataset.res==="block"?"#bt-"+id:"#qt-"+id);
+  if(el){el.scrollIntoView({block:"center",inline:"center",behavior:"smooth"});el.focus({preventScroll:true})}}
+
 function renderBanner(){q(".banner-slot").innerHTML=S.example?`<div class="banner"><b>Example</b><span>“The Last Crossing” is sample content showing how the spine fills in. Edit it, or start a new plan from the menu.</span><button class="btn sm" data-act="dismiss-example">Hide this note</button></div>`:""}
 
-function cardHTML(s,info){
+function cardHTML(s,info,M){
+  const hl=M?(M.ids.has(s.id)?" hit":" dim"):"";
   const media=S.media?`<div class="chips"><span class="chip${s.footage.length?" on":""}">${s.footage.length} footage</span><span class="chip${s.audio.length?" on":""}">${s.audio.length} audio</span><span class="chip${s.vo.trim()?" on":""}">VO</span></div>`:"";
-  return `<article class="card${openId===s.id?" sel":""}" tabindex="0" role="button" draggable="true" data-scene="${s.id}" aria-label="Scene ${info.num}: ${esc(s.title||"Untitled")}">
+  return `<article class="card${openId===s.id?" sel":""}${hl}" tabindex="0" role="button" draggable="true" data-scene="${s.id}" aria-label="Scene ${info.num}: ${esc(s.title||"Untitled")}">
 <div class="card-top"><span class="num">${info.num}</span><span class="tc">${fmtTC(info.start)}</span></div>
 <div class="card-title">${s.title?esc(s.title):'<span class="ph">Untitled scene</span>'}</div>
 ${s.summary?`<div class="card-sum">${esc(s.summary)}</div>`:""}
 <div class="card-foot"><span class="meter" title="Intensity ${s.intensity}/10"><i style="width:${s.intensity*10}%"></i></span><span class="dur">${fmtDur(s.dur)}</span></div>${media}</article>`}
 
 function renderBoard(){
-  const L=layout(),wrap=q(".board-wrap"),sl=wrap.scrollLeft;
+  const L=layout(),M=matches(),wrap=q(".board-wrap"),sl=wrap.scrollLeft;
   const acts=S.blocks.filter(b=>b.kind==="act").length;let h="";
   S.blocks.forEach((b,bi)=>{
     const I=L.blocks.get(b.id),isAct=b.kind==="act";
-    h+=`<section class="blk ${b.kind}" style="--c:${I.color}">
+    h+=`<section class="blk ${b.kind}${M&&M.heads.has(b.id)?" hit-h":""}" style="--c:${I.color}">
 <header class="blk-h"><div class="blk-tag"><span class="blk-name">${I.label}</span><span class="tc">${fmtTC(I.start)}–${fmtTC(I.end)}</span></div>
 <input class="ghost blk-title" id="bt-${b.id}" data-b="${b.id}" data-f="title" value="${esc(b.title)}" placeholder="${isAct?"Act title":"Title"}" aria-label="${I.label} title">
 <textarea class="ghost blk-purpose auto" id="bp-${b.id}" data-b="${b.id}" data-f="purpose" rows="1" placeholder="${isAct?"What this act does for the story":"What this moment does"}" aria-label="${I.label} purpose">${esc(b.purpose)}</textarea>
 <div class="blk-actions">${isAct?`<button class="btn sm" data-act="add-seq" data-b="${b.id}">+ Sequence</button>`:""}${isAct&&acts>1?`<button class="btn sm danger" data-act="del-block" data-b="${b.id}" data-confirm="Click again to delete">Delete act</button>`:""}</div></header>
 <div class="seqs">`;
     b.sequences.forEach((qq,qi)=>{
-      h+=`<div class="seq">`;
+      h+=`<div class="seq${M&&M.heads.has(qq.id)?" hit-h":""}">`;
       if(isAct)h+=`<div class="seq-h"><div class="seq-tag"><span>Sequence ${qi+1}</span>${b.sequences.length>1?`<button class="x" data-act="del-seq" data-q="${qq.id}" data-confirm="Delete?" aria-label="Delete sequence">×</button>`:""}</div>
 <input class="ghost seq-title" id="qt-${qq.id}" data-q="${qq.id}" data-f="title" value="${esc(qq.title)}" placeholder="Sequence title" aria-label="Sequence title">
 <textarea class="ghost seq-sum auto" id="qs-${qq.id}" data-q="${qq.id}" data-f="summary" rows="1" placeholder="What happens across these scenes" aria-label="Sequence summary">${esc(qq.summary)}</textarea></div>`;
-      h+=`<div class="scenes" data-drop="${qq.id}">${qq.scenes.map(s=>cardHTML(s,L.scenes.get(s.id))).join("")}<button class="add-scene" data-act="add-scene" data-q="${qq.id}">+ Scene</button></div></div>`});
+      h+=`<div class="scenes" data-drop="${qq.id}">${qq.scenes.map(s=>cardHTML(s,L.scenes.get(s.id),M)).join("")}<button class="add-scene" data-act="add-scene" data-q="${qq.id}">+ Scene</button></div></div>`});
     h+=`</div></section>`;
     const next=S.blocks[bi+1];
     if(isAct&&(!next||next.kind!=="act"))h+=`<button class="add-act" data-act="add-act" data-after="${b.id}">+ Act</button>`});
@@ -180,7 +222,10 @@ function renderArc(){
   const pts=L.list.map(i=>{const [s0,d]=pos.get(i.s.id);return [+X(s0+d/2).toFixed(1),+Y(i.s.intensity).toFixed(1),i]});
   if(pts.length){const p=pts.map(x=>[x[0],x[1]]),d=smooth(p);
     if(p.length>1)g+=`<path d="${d} L${p[p.length-1][0]},${base} L${p[0][0]},${base} Z" style="fill:var(--ink)" opacity=".05"/><path d="${d}" fill="none" style="stroke:var(--ink)" stroke-width="2" stroke-linecap="round"/>`;
-    pts.forEach(([x,y,i])=>{const sel=i.s.id===openId;g+=`<circle class="dot" data-scene="${i.s.id}" cx="${x}" cy="${y}" r="${sel?8:5.5}" style="fill:${i.color};stroke:var(--panel)" stroke-width="2"><title>${esc(i.num+"  "+(i.s.title||"Untitled scene")+"  ·  intensity "+i.s.intensity+"/10  ·  "+fmtDur(i.s.dur))}</title></circle>`})}
+    const M=matches();
+    pts.forEach(([x,y,i])=>{const sel=i.s.id===openId,on=M&&M.ids.has(i.s.id),off=M&&!on;
+      if(on)g+=`<circle cx="${x}" cy="${y}" r="10" fill="none" style="stroke:var(--ink)" stroke-width="1.5"/>`;
+      g+=`<circle class="dot" data-scene="${i.s.id}" cx="${x}" cy="${y}" r="${sel?8:5.5}" style="fill:${i.color};stroke:var(--panel)" stroke-width="2"${off?' opacity=".2"':""}><title>${esc(i.num+"  "+(i.s.title||"Untitled scene")+"  ·  intensity "+i.s.intensity+"/10  ·  "+fmtDur(i.s.dur))}</title></circle>`})}
   else g+=`<text x="${W/2}" y="${H/2}" text-anchor="middle" style="fill:var(--muted)">Add a scene to start drawing the arc</text>`;
   el.innerHTML=`<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Story arc: scene intensity over running time">${g}</svg>`}
 
@@ -216,7 +261,7 @@ ${S.media?mediaHTML(s):`<div class="media-off"><p>Footage, audio and voice-over 
 function changed(structural){
   S.updatedAt=Date.now();
   if(structural){renderBoard();renderDrawer()}
-  renderArc();updateRuntime();
+  renderArc();updateRuntime();if(query)renderResults();
   if(opts.onChange)opts.onChange(S)}
 function updateRuntime(){const L=layout(),tg=(+S.film.target||0)*60,diff=L.total-tg;
   q(".runtime").innerHTML=`Running time ${fmtDur(L.total)}${tg?` · ${diff>0?`<span class="over">${fmtDur(diff)} over</span>`:`${fmtDur(-diff)} under`}`:""} · ${L.list.length} scenes`}
@@ -241,6 +286,7 @@ function growAll(r){r.querySelectorAll("textarea.auto").forEach(grow)}
 /* ---------- events ---------- */
 function onClick(e){
   const dot=e.target.closest(".dot");if(dot){open(dot.dataset.scene,true);return}
+  const res=e.target.closest(".res");if(res){openResult(res);return}
   const a=e.target.closest("[data-act]");
   if(!a){const c=e.target.closest(".card");if(c)open(c.dataset.scene);return}
   const act=a.dataset.act;
@@ -258,7 +304,11 @@ function onClick(e){
   else if(act==="dismiss-example"){S.example=false;renderBanner();changed()}
 }
 function bindInner(){
-  const board=q(".board"),drawer=q(".drawer");
+  const board=q(".board"),drawer=q(".drawer"),search=q("#f-search");
+  search.addEventListener("input",()=>{query=search.value;renderResults();renderBoard();renderArc()});
+  search.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){const first=q(".res");if(first){e.preventDefault();openResult(first)}}
+    else if(e.key==="Escape"&&search.value){e.preventDefault();e.stopPropagation();search.value="";query="";renderResults();renderBoard();renderArc()}});
   q(".top").addEventListener("input",e=>{const t=e.target;
     if(t.id==="f-title")S.film.title=t.value;else if(t.id==="f-logline"){S.film.logline=t.value;grow(t)}
     else if(t.id==="f-director")S.film.director=t.value;
@@ -293,10 +343,14 @@ function bindInner(){
 }
 
 function mount(el,state,o){
+  if(!root)document.addEventListener("keydown",e=>{
+    const k=e.key.toLowerCase(),typing=/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement&&document.activeElement.tagName);
+    if(((e.ctrlKey||e.metaKey)&&(k==="f"||k==="k"))||(k==="/"&&!typing&&!e.ctrlKey&&!e.metaKey)){
+      const i=root&&root.querySelector("#f-search");if(i){e.preventDefault();i.focus();i.select()}}});
   if(root!==el){el.addEventListener("click",onClick);
     el.addEventListener("keydown",e=>{const c=e.target.closest&&e.target.closest(".card");if(c&&(e.key==="Enter"||e.key===" ")&&e.target===c){e.preventDefault();open(c.dataset.scene)}})}
   root=el;opts=o||{};S=normalize(state);openId=null;renderShell()}
-function setState(st){S=normalize(st);openId=null;renderShell()}
+function setState(st){S=normalize(st);openId=null;query="";renderShell()}
 function getState(){return S}
 
 return {mount,setState,getState,closeDrawer,normalize,blankState,exampleState,clone,esc,fmtDur}

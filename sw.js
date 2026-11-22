@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy so phones and PCs pick up the new files.
-const VERSION = "2026-11-22.1";
+const VERSION = "2026-11-22.2";
 const APP = "spine-app-" + VERSION;
 const FONTS = "spine-fonts";
 const ASSETS = ["./", "index.html", "app.css", "editor.js", "shell.js", "manifest.webmanifest",
